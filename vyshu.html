@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CodeBloom — Interactive Code Learning Assistant</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Elegant gradient background and subtle ambient glow */
+    :root {
+      --bg1: #0f1021;
+      --bg2: #2a0e61;
+      --accent: #8cf9ff;
+      --accent-2: #ffb86b;
+      --good: #34d399;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --soft: rgba(255,255,255,0.08);
+    }
+    html, body {
+      height: 100%;
+      background: radial-gradient(1200px 800px at 10% 10%, #1b1c3a 0%, #0e0f1f 50%, #0a0b18 100%);
+      color: #e8ecff;
+      font-feature-settings: "ss01" 1, "cv11" 1;
+    }
+    .glass {
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .ring-soft {
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .neon {
+      text-shadow: 0 0 12px rgba(140,249,255,0.5);
+    }
+    .pulse-dot {
+      position: relative;
+    }
+    .pulse-dot::after{
+      content:"";
+      position:absolute; inset:-6px;
+      border-radius:999px;
+      background: radial-gradient(circle, rgba(140,249,255,0.18), transparent 60%);
+      animation:pulse 2.2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.7;}
+      50% { transform: scale(1.05); opacity: 1;}
+      100% { transform: scale(0.9); opacity: 0.7;}
+    }
+    .tab-active {
+      background: linear-gradient(180deg, rgba(140,249,255,0.14), rgba(140,249,255,0.08));
+      border-color: rgba(140,249,255,0.45);
+      color:#dffcff;
+    }
+    .badge {
+      background: rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.15);
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 12px;
+    }
+    .monos {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .caret {
+      width: 2px; background: #8cf9ff; animation: blink 1.1s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .line-number::before{
+      counter-increment: line;
+      content: counter(line);
+      color: #8b95b7;
+      display: inline-block;
+      width: 2rem;
+      text-align: right;
+      margin-right: 1rem;
+      opacity: .7;
+    }
+    .line-numbered {
+      counter-reset: line;
+      white-space: pre;
+    }
+    .tooltip {
+      position: relative;
+    }
+    .tooltip:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0a0e1f;
+      color: #d8e6ff;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.14);
+      white-space: nowrap;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      z-index: 40;
+    }
+    /* Simple syntax tint via keywords */
+    .kw { color: #8cf9ff; }
+    .fn { color: #ffb86b; }
+    .st { color: #a0ffa8; }
+    .cm { color: #9aa3c7; font-style: italic; }
+    .er { background: rgba(239,68,68,0.12); border-bottom: 1px dashed rgba(239,68,68,0.6); }
+    .hl { background: rgba(140,249,255,0.08); }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 lg:px-8 py-8">
+    <!-- Header -->
+    <header class="mb-8">
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center glass ring-soft pulse-dot">
+          <!-- Simple logo -->
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" class="text-cyan-300">
+            <path d="M12 3l8.66 5v8L12 21l-8.66-5V8L12 3z" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M12 3v18M3.34 8L12 13l8.66-5" stroke="currentColor" stroke-opacity=".4" stroke-width="1"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-2xl md:text-3xl font-semibold tracking-tight neon">CodeBloom — Learn, Analyze, Debug</h1>
+          <p class="text-sm text-slate-300/80">A uniquely playful way to grow your coding skills with instant insights.</p>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+          <span class="badge">No sign-in needed</span>
+          <span class="badge">Works offline (demo)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main layout -->
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <!-- Left: Editor & Actions -->
+      <section class="xl:col-span-2 space-y-6">
+        <!-- Mode Tabs -->
+        <div class="flex gap-2">
+          <button data-tab="learn" class="tab-btn glass ring-soft px-4 py-2 rounded-lg text-sm hover:opacity-100 opacity-90 tab-active">Learn</button>
+          <button data-tab="practice" class="tab-btn glass ring-soft px-4 py-2 rounded-lg text-sm hover:opacity-100 opacity-90">Practice</button>
+          <button data-tab="playground" class="tab-btn glass ring-soft px-4 py-2 rounded-lg text-sm hover:opacity-100 opacity-90">Playground</button>
+        </div>
+
+        <!-- Learn: Interactive Tutorial -->
+        <div id="tab-learn" class="tab-panel glass ring-soft rounded-2xl p-5">
+          <div class="flex flex-col lg:flex-row gap-5">
+            <div class="lg:w-7/12">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-semibold">Interactive Tutorial</h2>
+                <div class="flex items-center gap-2">
+                  <span class="badge">Guided steps</span>
+                  <span class="badge">Live tips</span>
+                </div>
+              </div>
+              <div id="tutorialCard" class="glass rounded-xl p-4 space-y-3">
+                <h3 id="tutorialTitle" class="font-semibold">1) Variables & Output</h3>
+                <p id="tutorialBody" class="text-slate-300/90 text-sm">
+                  Create a variable named name and print a greeting. Try customizing your message!
+                </p>
+                <div class="flex flex-wrap gap-2">
+                  <button id="tutorialPrev" class="px-3 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-700/70 text-sm">Back</button>
+                  <button id="tutorialNext" class="px-3 py-2 rounded-lg bg-cyan-500/90 hover:bg-cyan-400 text-slate-900 text-sm font-medium">Next</button>
+                  <button id="tutorialApply" class="ml-auto px-3 py-2 rounded-lg bg-emerald-500/90 hover:bg-emerald-400 text-slate-900 text-sm font-medium">Load Example</button>
+                </div>
+                <div id="tutorialTip" class="text-xs text-emerald-300/90"></div>
+              </div>
+            </div>
+            <div class="lg:w-5/12">
+              <div class="grid grid-cols-2 gap-2">
+                <button class="preset-btn glass rounded-lg px-3 py-2 text-left hover:bg-white/5" data-preset="hello">
+                  <div class="text-sm font-medium">Hello Starter</div>
+                  <div class="text-xs text-slate-300/80">Print a greeting</div>
+                </button>
+                <button class="preset-btn glass rounded-lg px-3 py-2 text-left hover:bg-white/5" data-preset="loops">
+                  <div class="text-sm font-medium">Loops</div>
+                  <div class="text-xs text-slate-300/80">Repeat actions</div>
+                </button>
+                <button class="preset-btn glass rounded-lg px-3 py-2 text-left hover:bg-white/5" data-preset="arrays">
+                  <div class="text-sm font-medium">Arrays</div>
+                  <div class="text-xs text-slate-300/80">List and iterate</div>
+                </button>
+                <button class="preset-btn glass rounded-lg px-3 py-2 text-left hover:bg-white/5" data-preset="errors">
+                  <div class="text-sm font-medium">Bug Hunt</div>
+                  <div class="text-xs text-slate-300/80">Fix the mistakes</div>
+                </button>
+              </div>
+              <p class="text-xs text-slate-300/70 mt-2">Pick a preset to auto-fill the editor.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Practice: Exercise Generator -->
+        <div id="tab-practice" class="tab-panel glass ring-soft rounded-2xl p-5 hidden">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Exercise Generator</h2>
+            <div class="text-xs text-slate-300/80">Smart prompts create new challenges</div>
+          </div>
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="glass rounded-xl p-4">
+              <div class="text-sm font-medium mb-2">Topic</div>
+              <select id="exTopic" class="w-full bg-transparent border border-white/20 rounded-lg px-3 py-2 focus:outline-none">
+                <option value="strings">Strings</option>
+                <option value="loops">Loops</option>
+                <option value="arrays">Arrays</option>
+                <option value="functions">Functions</option>
+                <option value="conditions">Conditions</option>
+              </select>
+            </div>
+            <div class="glass rounded-xl p-4">
+              <div class="text-sm font-medium mb-2">Difficulty</div>
+              <div class="flex gap-2">
+                <label class="flex items-center gap-2 text-xs bg-white/5 px-3 py-2 rounded-lg cursor-pointer">
+                  <input type="radio" name="exDiff" value="easy" checked /> Easy
+                </label>
+                <label class="flex items-center gap-2 text-xs bg-white/5 px-3 py-2 rounded-lg cursor-pointer">
+                  <input type="radio" name="exDiff" value="medium" /> Medium
+                </label>
+                <label class="flex items-center gap-2 text-xs bg-white/5 px-3 py-2 rounded-lg cursor-pointer">
+                  <input type="radio" name="exDiff" value="hard" /> Hard
+                </label>
+              </div>
+            </div>
+            <div class="glass rounded-xl p-4">
+              <div class="text-sm font-medium mb-2">Twist</div>
+              <select id="exTwist" class="w-full bg-transparent border border-white/20 rounded-lg px-3 py-2 focus:outline-none">
+                <option value="time">Time limit</option>
+                <option value="buggy">Buggy starter</option>
+                <option value="optimize">Optimize result</option>
+                <option value="random">Random constraint</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mt-4 flex gap-2">
+            <button id="generateExercise" class="px-4 py-2 rounded-lg bg-cyan-500/90 hover:bg-cyan-400 text-slate-900 text-sm font-medium">Generate Exercise</button>
+            <button id="loadExerciseToEditor" class="px-4 py-2 rounded-lg bg-emerald-500/90 hover:bg-emerald-400 text-slate-900 text-sm font-medium">Load to Editor</button>
+          </div>
+
+          <div id="exerciseCard" class="glass rounded-2xl p-4 mt-4 hidden">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div id="exerciseTitle" class="font-medium">Your challenge</div>
+                <div id="exerciseMeta" class="text-xs text-slate-300/70 mt-1"></div>
+              </div>
+              <span id="exerciseBadge" class="badge">New</span>
+            </div>
+            <p id="exerciseDesc" class="text-sm text-slate-200/90 mt-3"></p>
+            <details class="mt-3">
+              <summary class="text-xs text-slate-300/80 cursor-pointer">Hints</summary>
+              <ul id="exerciseHints" class="list-disc list-inside text-xs text-slate-300/80 mt-2 space-y-1"></ul>
+            </details>
+          </div>
+        </div>
+
+        <!-- Playground: Editor + Output -->
+        <div id="tab-playground" class="tab-panel glass ring-soft rounded-2xl p-5 hidden">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold">Code Playground</h2>
+            <div class="flex items-center gap-2 text-xs text-slate-300/80">
+              <span class="badge">Instant analysis</span>
+              <span class="badge">Safe sandbox</span>
+            </div>
+          </div>
+
+          <div class="grid lg:grid-cols-2 gap-4">
+            <!-- Editor -->
+            <div class="glass rounded-xl p-3">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-xs text-slate-300/80">Language: <span class="font-medium">JavaScript (simulated)</span></div>
+                <div class="flex items-center gap-2">
+                  <button id="btnFormat" class="text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20">Format</button>
+                  <button id="btnReset" class="text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20">Reset</button>
+                </div>
+              </div>
+              <div class="relative">
+                <div id="editor" class="monos line-numbered min-h-[260px] max-h-[360px] overflow-auto rounded-lg p-3 bg-[#0c0e1d] border border-white/10"
+                     contenteditable="true" spellcheck="false"></div>
+                <div class="absolute top-2 right-2 text-[10px] text-slate-400/70">Editor</div>
+              </div>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <button id="btnAnalyze" class="px-4 py-2 rounded-lg bg-cyan-500/90 hover:bg-cyan-400 text-slate-900 text-sm font-medium">Analyze</button>
+                <button id="btnRun" class="px-4 py-2 rounded-lg bg-emerald-500/90 hover:bg-emerald-400 text-slate-900 text-sm font-medium">Run</button>
+                <button id="btnBugify" class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Inject a Bug</button>
+                <div id="autosave" class="ml-auto text-xs text-slate-400/70">Autosaved ✦</div>
+              </div>
+            </div>
+
+            <!-- Output & Analysis -->
+            <div class="space-y-4">
+              <div class="glass rounded-xl p-3">
+                <div class="flex items-center justify-between">
+                  <div class="text-sm font-medium">Live Output</div>
+                  <div class="text-[11px] text-slate-400/80">Simulated console</div>
+                </div>
+                <div id="console" class="monos min-h-[120px] max-h-[180px] overflow-auto bg-[#0b0d19] mt-2 rounded-lg p-3 border border-white/10"></div>
+              </div>
+
+              <div class="glass rounded-xl p-3">
+                <div class="flex items-center justify-between">
+                  <div class="text-sm font-medium">Analysis & Debugging</div>
+                  <div class="text-[11px] text-slate-400/80">Instant feedback</div>
+                </div>
+                <div id="analysis" class="mt-2 space-y-2">
+                  <!-- Filled via JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Learning Aids -->
+      <aside class="space-y-6">
+        <!-- Smart Coach -->
+        <div class="glass ring-soft rounded-2xl p-5">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold">Smart Coach</h3>
+            <span class="badge">Personalized</span>
+          </div>
+          <p class="text-sm text-slate-300/90 mt-2">Ask for hints, code reviews, or clarity.</p>
+          <div class="mt-3">
+            <div class="flex gap-2">
+              <input id="coachInput" class="flex-1 bg-transparent border border-white/20 rounded-lg px-3 py-2 text-sm" placeholder="e.g., Why is my loop skipping?" />
+              <button id="coachAsk" class="px-3 py-2 rounded-lg bg-cyan-500/90 hover:bg-cyan-400 text-slate-900 text-sm font-medium">Ask</button>
+            </div>
+            <div id="coachReply" class="text-xs text-slate-300/90 mt-3"></div>
+          </div>
+        </div>
+
+        <!-- Concept Cards -->
+        <div class="glass ring-soft rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold">Concept Capsules</h3>
+            <span class="badge">Bite-sized</span>
+          </div>
+          <div id="concepts" class="grid grid-cols-2 gap-2">
+            <!-- Filled via JS -->
+          </div>
+          <div class="text-[11px] text-slate-400/80 mt-2">Click any capsule to highlight helpful patterns in the editor.</div>
+        </div>
+
+        <!-- Progress Tracker -->
+        <div class="glass ring-soft rounded-2xl p-5">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold">Progress</h3>
+            <span class="badge">Local demo</span>
+          </div>
+          <div class="mt-3 space-y-3">
+            <div>
+              <div class="flex justify-between text-xs text-slate-300/80">
+                <span>Lessons completed</span><span id="statLessons">0</span>
+              </div>
+              <div class="h-2 bg-white/10 rounded">
+                <div id="barLessons" class="h-2 bg-emerald-400 rounded transition-all" style="width:0%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs text-slate-300/80">
+                <span>Bugs fixed</span><span id="statBugs">0</span>
+              </div>
+              <div class="h-2 bg-white/10 rounded">
+                <div id="barBugs" class="h-2 bg-cyan-400 rounded transition-all" style="width:0%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs text-slate-300/80">
+                <span>Challenges solved</span><span id="statChallenges">0</span>
+              </div>
+              <div class="h-2 bg-white/10 rounded">
+                <div id="barChallenges" class="h-2 bg-indigo-400 rounded transition-all" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-10 text-center text-xs text-slate-400/80">
+      Built with love by Canva Code · This is a demo that simulates code execution and analysis locally.
+    </footer>
+  </div>
+
+  <script>
+    // Minimal state
+    const editor = document.getElementById('editor');
+    const consoleEl = document.getElementById('console');
+    const analysisEl = document.getElementById('analysis');
+    const autosaveEl = document.getElementById('autosave');
+
+    // Presets and tutorials
+    const PRESETS = {
+      hello: `// Print a greeting
+const name = "Ada";
+function greet(n){ return "Hello, " + n + "!"; }
+console.log(greet(name));`,
+      loops: `// Sum numbers from 1 to n
+function sumTo(n){
+  let total = 0;
+  for(let i=1; i<=n; i++){
+    total += i;
+  }
+  return total;
+}
+console.log(sumTo(10));`,
+      arrays: `// Find the longest word
+const words = ["apple","strawberry","kiwi","banana"];
+let longest = "";
+for (const w of words){
+  if (w.length > longest.length) longest = w;
+}
+console.log(longest);`,
+      errors: `// Buggy code — fix it!
+const nums = [1,2,3,4];
+let total = 0;
+for (let i=0; i<nums.length; i++){
+  total += nums[i]
+}
+console.log(total) // <- missing semicolons intentionally
+undeclaredVar = 5 // <- assigning without declaration
+`
+    };
+
+    const TUTORIALS = [
+      {
+        title: "1) Variables & Output",
+        body: "Create a variable named name and print a greeting. Try customizing your message!",
+        code: PRESETS.hello,
+        tip: "Use const for values that don't change. console.log shows output below."
+      },
+      {
+        title: "2) Loops & Accumulation",
+        body: "Write a loop that sums numbers from 1 to 100, then print the result.",
+        code: PRESETS.loops,
+        tip: "Use a counter that grows by 1 and a total that adds it up."
+      },
+      {
+        title: "3) Arrays & Selection",
+        body: "Given a list of words, print the longest one.",
+        code: PRESETS.arrays,
+        tip: "Compare lengths and keep track of the best so far."
+      },
+      {
+        title: "4) Debugging Practice",
+        body: "The code has mistakes. Find and fix them until the analysis shows zero errors.",
+        code: PRESETS.errors,
+        tip: "Read error messages carefully and fix one issue at a time."
+      }
+    ];
+
+    // Concept Capsules
+    const CONCEPTS = [
+      { id:"vars", title:"Variables", tip:"Prefer const unless you need to reassign.", pattern:/\b(let|const|var)\b/g },
+      { id:"loops", title:"Loops", tip:"Use for...of to read items in arrays.", pattern:/\bfor\s*\(|for\s*\(\s*const|\bfor\s*\(\s*let/g },
+      { id:"func", title:"Functions", tip:"Single responsibility helps testing.", pattern:/\bfunction\s+|=>/g },
+      { id:"arrays", title:"Arrays", tip:"Use array.length and helpful methods.", pattern:/\b\w+\s*=\s*\[.*\]|\.length\b/g },
+      { id:"console", title:"Console", tip:"Log checkpoints while debugging.", pattern:/console\.log/g },
+      { id:"errors", title:"Errors", tip:"Fix syntax issues from top to bottom.", pattern:/\bundec|\bnot\s+defined\b/g }
+    ];
+
+    // Exercise generator (simple)
+    function generateExercise(topic, difficulty, twist){
+      const base = {
+        strings: {
+          title: "String Mixer",
+          desc: "Ask the user for two words and print them joined with a dash, reversed, and in uppercase.",
+          hints: ["Use toUpperCase()", "Concatenate with +", "Reverse by splitting into an array"]
+        },
+        loops: {
+          title: "FizzBuzz Remix",
+          desc: "Print numbers 1..n. Replace multiples of 3 with 'Fizz', 5 with 'Buzz', and both with 'FizzBuzz'.",
+          hints: ["Use % for remainder", "Check both conditions first"]
+        },
+        arrays: {
+          title: "Unique Counter",
+          desc: "Count how many unique values are in an array of numbers.",
+          hints: ["Track seen values", "Sets can help, or an object map"]
+        },
+        functions: {
+          title: "Safe Divide",
+          desc: "Write a function divide(a,b) that returns null if b is 0, otherwise a/b.",
+          hints: ["Check b === 0", "Return early to avoid errors"]
+        },
+        conditions: {
+          title: "Grade Mapper",
+          desc: "Convert a numeric score to a letter grade A-F using rules you define.",
+          hints: ["Use if/else if chain", "Test boundary values"]
+        }
+      }[topic];
+
+      const diffMeta = {
+        easy: "Beginner",
+        medium: "Intermediate",
+        hard: "Advanced"
+      }[difficulty];
+
+      const twistText = {
+        time: "Do it under a 30-second timer.",
+        buggy: "Start from a buggy snippet and fix it.",
+        optimize: "Make it efficient for large inputs.",
+        random: "Add a random surprise, like skipping a number."
+      }[twist];
+
+      const starter = {
+        strings: `// TODO: Complete transformations
+const a = "hello";
+const b = "world";
+console.log(a + "-" + b);`,
+        loops: `// TODO: FizzBuzz
+for (let i=1;i<=20;i++){
+  // your code
+}`,
+        arrays: `// TODO: count unique
+const arr = [1,2,2,3,4,4,4,5];
+let count = 0;`,
+        functions: `// TODO: safe divide
+function divide(a,b){
+  // your code
+}
+console.log(divide(10,2));`,
+        conditions: `// TODO: grade mapper
+function grade(score){
+  // your code
+}`
+      }[topic];
+
+      return {
+        title: base.title,
+        meta: ${diffMeta} • ${topic.charAt(0).toUpperCase()+topic.slice(1)} • Twist: ${twistText},
+        desc: base.desc,
+        hints: base.hints,
+        starter
+      };
+    }
+
+    // Code formatting (very simple)
+    function formatCode(s){
+      return s
+        .replace(/\t/g,'  ')
+        .replace(/[ ]+$/gm,'')
+        .replace(/\n{3,}/g,'\n\n');
+    }
+
+    // Simple static analysis
+    function analyzeCode(src){
+      const issues = [];
+      const tips = [];
+
+      // Basic checks
+      if (/console\.log\(/.test(src) === false){
+        tips.push({type:"tip", msg:"Try printing your result so you can see it in the output."});
+      }
+      // Semicolon suggestion
+      if (/\n\s*[^\s].[^\s;{}\)]\s$/m.test(src)){
+        tips.push({type:"tip", msg:"Consider adding semicolons for clarity and fewer surprises."});
+      }
+      // Undeclared variables
+      const undeclared = [...src.matchAll(/\b([a-zA-Z_]\w*)\s*=\s*[^=]/g)]
+        .map(m=>m[1])
+        .filter(name => !/\b(let|const|var)\s+${name}\b/.test(src));
+      const declared = new Set((src.match(/\b(let|const|var)\s+([a-zA-Z_]\w*)/g)||[]).map(x=>x.split(/\s+/)[1]));
+      undeclared.forEach(name=>{
+        if (!declared.has(name)){
+          issues.push({type:"error", msg:'${name}' seems used without declaration. Add let/const.});
+        }
+      });
+
+      // Suspicious for-loops
+      if (/for\s*\(\s*;\s*;\s*\)/.test(src)){
+        tips.push({type:"warn", msg:"Endless loop detected. Make sure you have a stopping condition."});
+      }
+
+      // Unused variables
+      const vars = [...src.matchAll(/\b(let|const|var)\s+([a-zA-Z_]\w*)/g)].map(m=>m[2]);
+      vars.forEach(v=>{
+        const count = (src.match(new RegExp("\\b"+v+"\\b","g"))||[]).length;
+        if (count === 1){
+          tips.push({type:"warn", msg:'${v}' is declared but never used.});
+        }
+      });
+
+      // Simple syntax try-catch by evaluating in a safe Function
+      try {
+        new Function(src.replace(/console\.log/g,';')); // strip logs for syntax check
+      } catch (e){
+        issues.push({type:"error", msg: e.message});
+      }
+
+      // Style nudges
+      if (/var\s+/.test(src)){
+        tips.push({type:"tip", msg:"Prefer let/const over var for modern code."});
+      }
+      if (/==[^=]/.test(src)){
+        tips.push({type:"tip", msg:"Use === for strict equality to avoid surprises."});
+      }
+
+      // Suggestions based on patterns
+      if (/for\s*\(\s*let\s+i\s*=/.test(src) && /\.length/.test(src)){
+        tips.push({type:"tip", msg:"Consider for...of to iterate arrays more readably."});
+      }
+
+      return { issues, tips };
+    }
+
+    // Runtime simulation: captures console.log and errors
+    function runCode(src){
+      const out = [];
+      const original = console.log;
+      console.log = (...args)=>{ out.push(args.join(' ')); };
+      let error = null;
+      try{
+        new Function(src)();
+      }catch(e){
+        error = e.message;
+      }
+      console.log = original;
+      return { out, error };
+    }
+
+    // Highlighting and line numbers
+    function renderEditor(text){
+      // Very simple token tinting
+      const esc = (s)=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const tokens = esc(text)
+        .replace(/(\/\/.*?$)/gm,'<span class="cm">$1</span>')
+        .replace(/\b(function)\b/g,'<span class="kw">$1</span>')
+        .replace(/\b(const|let|var|for|if|else|return)\b/g,'<span class="kw">$1</span>')
+        .replace(/\b(console)\.(log)\b/g,'<span class="kw">$1</span>.<span class="fn">$2</span>')
+        .replace(/("[^"]"|'[^']')/g,'<span class="st">$1</span>');
+      const withLines = tokens.split('\n').map(l=><div class="line-number">${l||' '}</div>).join('\n');
+      editor.innerHTML = withLines;
+      placeCaretAtEnd(editor);
+    }
+
+    function getEditorText(){
+      // Join each line-number div's text
+      return Array.from(editor.childNodes).map(n=>n.textContent.replace(/\u200B/g,'')).join('\n').trimEnd();
+    }
+
+    function placeCaretAtEnd(el){
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    // Local persistence
+    const STORAGE_KEY = 'codebloom-editor';
+    function save(){
+      const txt = getEditorText();
+      localStorage.setItem(STORAGE_KEY, txt);
+      autosaveEl.textContent = 'Autosaved ✦';
+    }
+    function load(){
+      return localStorage.getItem(STORAGE_KEY);
+    }
+
+    // Update analysis panel
+    function showAnalysis(result){
+      analysisEl.innerHTML = '';
+      const { issues, tips } = result;
+
+      const makeItem = (type,msg)=>{
+        const color = type==='error' ? 'text-red-300' : type==='warn' ? 'text-amber-300' : 'text-emerald-300';
+        const dot = type==='error' ? 'bg-red-400' : type==='warn' ? 'bg-amber-400' : 'bg-emerald-400';
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-3 bg-white/[.04] border border-white/10 rounded-lg p-3';
+        row.innerHTML = `
+          <div class="w-2 h-2 mt-1 rounded-full ${dot}"></div>
+          <div class="text-sm ${color}">${msg}</div>
+        `;
+        return row;
+      };
+
+      if (issues.length===0 && tips.length===0){
+        analysisEl.appendChild(makeItem('tip','Looks great! No issues found.'));
+      } else {
+        issues.forEach(i=>analysisEl.appendChild(makeItem('error', i.msg)));
+        tips.forEach(t=>analysisEl.appendChild(makeItem(t.type==='warn'?'warn':'tip', t.msg)));
+      }
+    }
+
+    // Console output
+    function logConsole(lines, error){
+      consoleEl.innerHTML = '';
+      if (lines.length===0 && !error){
+        consoleEl.innerHTML = '<div class="text-slate-400/70 text-sm">Nothing yet. Use console.log or run your code.</div>';
+        return;
+      }
+      lines.forEach(l=>{
+        const div = document.createElement('div');
+        div.className = 'text-emerald-300 monos';
+        div.textContent = '⟶ ' + l;
+        consoleEl.appendChild(div);
+      });
+      if (error){
+        const div = document.createElement('div');
+        div.className = 'text-red-300 monos mt-2';
+        div.textContent = 'Error: ' + error;
+        consoleEl.appendChild(div);
+      }
+    }
+
+    // Concept capsules UI
+    function renderConcepts(){
+      const wrap = document.getElementById('concepts');
+      CONCEPTS.forEach(c=>{
+        const b = document.createElement('button');
+        b.className = 'text-left glass rounded-lg p-3 hover:bg-white/5';
+        b.innerHTML = <div class="text-sm font-medium">${c.title}</div><div class="text-[11px] text-slate-300/80">${c.tip}</div>;
+        b.addEventListener('click', ()=>{
+          highlightPattern(c.pattern);
+        });
+        wrap.appendChild(b);
+      });
+    }
+    function highlightPattern(pattern){
+      const txt = getEditorText();
+      const parts = txt.split('\n');
+      const marked = parts.map(line=>{
+        return line.replace(pattern, (m)=>[[HL]]${m}[[/HL]]);
+      }).join('\n');
+      const safe = marked
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+        .replace(/\[\[HL\]\]/g,'<span class="hl">').replace(/\[\[\/HL\]\]/g,'</span>');
+      const withLines = safe.split('\n').map(l=><div class="line-number">${l||' '}</div>).join('\n');
+      editor.innerHTML = withLines;
+      placeCaretAtEnd(editor);
+    }
+
+    // Tabs
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const panels = {
+      learn: document.getElementById('tab-learn'),
+      practice: document.getElementById('tab-practice'),
+      playground: document.getElementById('tab-playground')
+    };
+    tabBtns.forEach(b=>{
+      b.addEventListener('click', ()=>{
+        tabBtns.forEach(x=>x.classList.remove('tab-active'));
+        b.classList.add('tab-active');
+        const t = b.dataset.tab;
+        Object.entries(panels).forEach(([k,el])=>{
+          el.classList.toggle('hidden', k!==t);
+        });
+      });
+    });
+
+    // Tutorial controls
+    let tutorialIndex = 0;
+    const tutorialTitle = document.getElementById('tutorialTitle');
+    const tutorialBody = document.getElementById('tutorialBody');
+    const tutorialTip = document.getElementById('tutorialTip');
+    function renderTutorial(){
+      const t = TUTORIALS[tutorialIndex];
+      tutorialTitle.textContent = t.title;
+      tutorialBody.textContent = t.body;
+      tutorialTip.textContent = 'Tip: ' + t.tip;
+    }
+    document.getElementById('tutorialNext').addEventListener('click', ()=>{
+      tutorialIndex = (tutorialIndex + 1) % TUTORIALS.length;
+      renderTutorial();
+    });
+    document.getElementById('tutorialPrev').addEventListener('click', ()=>{
+      tutorialIndex = (tutorialIndex - 1 + TUTORIALS.length) % TUTORIALS.length;
+      renderTutorial();
+    });
+    document.getElementById('tutorialApply').addEventListener('click', ()=>{
+      const t = TUTORIALS[tutorialIndex];
+      renderEditor(t.code);
+      save();
+    });
+
+    // Preset buttons
+    document.querySelectorAll('.preset-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const key = btn.dataset.preset;
+        renderEditor(PRESETS[key]);
+        save();
+        // Switch to Playground for immediate try
+        tabBtns.forEach(x=>x.classList.remove('tab-active'));
+        document.querySelector('[data-tab="playground"]').classList.add('tab-active');
+        Object.entries(panels).forEach(([k,el])=>{
+          el.classList.toggle('hidden', k!=='playground');
+        });
+      });
+    });
+
+    // Editor actions
+    document.getElementById('btnFormat').addEventListener('click', ()=>{
+      renderEditor(formatCode(getEditorText()));
+      save();
+    });
+    document.getElementById('btnReset').addEventListener('click', ()=>{
+      renderEditor(PRESETS.hello);
+      save();
+    });
+    document.getElementById('btnBugify').addEventListener('click', ()=>{
+      const src = getEditorText();
+      const injected = src + `
+
+/* accidental bug */ 
+for(;;){ break } // fixed immediately, but imagine if forgot!
+badVar = 3
+`;
+      renderEditor(injected);
+      save();
+    });
+
+    // Analyze and Run
+    document.getElementById('btnAnalyze').addEventListener('click', ()=>{
+      const src = getEditorText();
+      const result = analyzeCode(src);
+      showAnalysis(result);
+      // Update progress: count fixed when zero errors
+      if (result.issues.length === 0){
+        bumpProgress('bugs');
+      }
+    });
+    document.getElementById('btnRun').addEventListener('click', ()=>{
+      const src = getEditorText();
+      const { out, error } = runCode(src);
+      logConsole(out, error);
+      bumpProgress('challenges');
+    });
+
+    // Practice: Exercise Generator
+    document.getElementById('generateExercise').addEventListener('click', ()=>{
+      const topic = document.getElementById('exTopic').value;
+      const diff = (document.querySelector('input[name="exDiff"]:checked')||{}).value || 'easy';
+      const twist = document.getElementById('exTwist').value;
+      const ex = generateExercise(topic, diff, twist);
+      document.getElementById('exerciseTitle').textContent = ex.title;
+      document.getElementById('exerciseMeta').textContent = ex.meta;
+      document.getElementById('exerciseDesc').textContent = ex.desc;
+      const list = document.getElementById('exerciseHints');
+      list.innerHTML = '';
+      ex.hints.forEach(h=>{
+        const li = document.createElement('li');
+        li.textContent = h;
+        list.appendChild(li);
+      });
+      document.getElementById('exerciseCard').classList.remove('hidden');
+      document.getElementById('exerciseCard').dataset.starter = ex.starter;
+      document.getElementById('exerciseBadge').textContent = 'New';
+    });
+    document.getElementById('loadExerciseToEditor').addEventListener('click', ()=>{
+      const starter = document.getElementById('exerciseCard').dataset.starter;
+      if (starter){
+        renderEditor(starter);
+        save();
+        bumpProgress('lessons');
+      }
+    });
+
+    // Smart Coach (local suggestion generator)
+    document.getElementById('coachAsk').addEventListener('click', ()=>{
+      const q = (document.getElementById('coachInput').value||'').trim();
+      const reply = document.getElementById('coachReply');
+      if (!q){
+        reply.textContent = "Try asking about a concept or an error you're seeing.";
+        return;
+      }
+      // Friendly canned guidance based on keywords
+      const src = getEditorText();
+      let ans = "Here’s a helpful way to think about it: ";
+      if (/loop|for|while/i.test(q)){
+        ans += "Start with a clear start, stop, and step. Print values inside first to confirm it behaves, then move logic out.";
+      } else if (/error|bug|issue|not defined/i.test(q)){
+        ans += "Fix one thing at a time. Read the first error, scroll to that line, and correct it before running again.";
+      } else if (/array|list/i.test(q)){
+        ans += "Iterate with for...of to read values. Use .length to guard bounds and methods like map/filter for clarity.";
+      } else if (/function|param/i.test(q)){
+        ans += "Keep your function focused. Use clear parameter names and return early when input is invalid.";
+      } else {
+        ans += "Break the problem down into tiny steps. Get each step working in the console before combining them.";
+      }
+      if (/undefined|not defined/i.test(src)){
+        ans += " I also noticed something might be undefined—double-check your variable names.";
+      }
+      reply.textContent = ans;
+    });
+
+    // Progress tracking (local demo)
+    function bumpProgress(which){
+      const map = {
+        lessons: ['statLessons','barLessons'],
+        bugs: ['statBugs','barBugs'],
+        challenges: ['statChallenges','barChallenges'],
+      };
+      const [sId,bId] = map[which];
+      const n = (parseInt(document.getElementById(sId).textContent)||0) + 1;
+      document.getElementById(sId).textContent = n;
+      const pct = Math.min(100, n*10);
+      document.getElementById(bId).style.width = pct + '%';
+    }
+
+    // Initialize app
+    function init(){
+      // Load saved or default
+      const saved = load();
+      renderEditor(saved || PRESETS.hello);
+      renderTutorial();
+      renderConcepts();
+      // Initial console and analysis
+      logConsole([], null);
+      showAnalysis(analyzeCode(getEditorText()));
+
+      // Auto-save on blur or every few seconds
+      let saveTimer = null;
+      editor.addEventListener('keyup', ()=>{
+        autosaveEl.textContent = 'Editing…';
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(save, 600);
+      });
+      editor.addEventListener('blur', save);
+    }
+    init();
+  </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97e5bb00d083a7e7',t:'MTc1Nzc0NjQzNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
